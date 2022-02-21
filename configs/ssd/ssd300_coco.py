@@ -1,6 +1,6 @@
 _base_ = [
     '../_base_/models/ssd300.py', '../_base_/datasets/coco_detection.py',
-    '../_base_/schedules/schedule_2x.py', '../_base_/default_runtime.py'
+    '../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py'
 ]
 # dataset settings
 dataset_type = 'CocoDataset'
@@ -44,8 +44,8 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    samples_per_gpu=8,
-    workers_per_gpu=3,
+    samples_per_gpu=64,
+    workers_per_gpu=24,
     train=dict(
         _delete_=True,
         type='RepeatDataset',

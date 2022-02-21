@@ -25,7 +25,7 @@ model = dict(
         conv_cfg=dict(type='DCNv2', deform_groups=2)),
     bbox_head=dict(
         type='NASFCOSHead',
-        num_classes=80,
+        num_classes=12,
         in_channels=256,
         feat_channels=256,
         strides=[8, 16, 32, 64, 128],
@@ -87,8 +87,8 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=4,
-    workers_per_gpu=2,
+    samples_per_gpu=8,
+    workers_per_gpu=8,
     train=dict(pipeline=train_pipeline),
     val=dict(pipeline=test_pipeline),
     test=dict(pipeline=test_pipeline))

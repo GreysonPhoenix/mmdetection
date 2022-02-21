@@ -28,7 +28,7 @@ model = dict(
         init_cfg=dict(type='Caffe2Xavier', layer='Conv2d')),
     bbox_head=dict(
         type='AutoAssignHead',
-        num_classes=80,
+        num_classes=12,
         in_channels=256,
         stacked_convs=4,
         feat_channels=256,

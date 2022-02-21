@@ -8,6 +8,7 @@ from torch.nn.modules.batchnorm import _BatchNorm
 
 from ..builder import BACKBONES
 from ..utils import ResLayer
+from mmdet.models.backbones.doam import DOAM
 
 
 class BasicBlock(BaseModule):
@@ -452,6 +453,7 @@ class ResNet(BaseModule):
         self.block, stage_blocks = self.arch_settings[depth]
         self.stage_blocks = stage_blocks[:num_stages]
         self.inplanes = stem_channels
+        # self.doam = DOAM().cuda()
 
         self._make_stem_layer(in_channels, stem_channels)
 
@@ -629,6 +631,7 @@ class ResNet(BaseModule):
 
     def forward(self, x):
         """Forward function."""
+        # x = self.doam(x)
         if self.deep_stem:
             x = self.stem(x)
         else:

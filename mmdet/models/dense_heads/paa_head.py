@@ -2,10 +2,12 @@ import numpy as np
 import torch
 from mmcv.runner import force_fp32
 
-from mmdet.core import multi_apply, multiclass_nms
+from mmdet.core import multi_apply, multiclass_nms, images_to_levels
 from mmdet.core.bbox.iou_calculators import bbox_overlaps
 from mmdet.models import HEADS
 from mmdet.models.dense_heads import ATSSHead
+from torch.autograd import Variable
+import torch.nn.functional as F
 
 EPS = 1e-12
 try:
@@ -81,6 +83,201 @@ class PAAHead(ATSSHead):
         self.with_score_voting = score_voting
         self.covariance_type = covariance_type
         super(PAAHead, self).__init__(*args, **kwargs)
+
+    def forward_train(self,
+                      x,
+                      img_metas,
+                      gt_bboxes,
+                      gt_labels=None,
+                      gt_bboxes_ignore=None,
+                      proposal_cfg=None,
+                      **kwargs):
+        """
+        Args:
+            x (list[Tensor]): Features from FPN.
+            img_metas (list[dict]): Meta information of each image, e.g.,
+                image size, scaling factor, etc.
+            gt_bboxes (Tensor): Ground truth bboxes of the image,
+                shape (num_gts, 4).
+            gt_labels (Tensor): Ground truth labels of each box,
+                shape (num_gts,).
+            gt_bboxes_ignore (Tensor): Ground truth bboxes to be
+                ignored, shape (num_ignored_gts, 4).
+            proposal_cfg (mmcv.Config): Test / postprocessing configuration,
+                if None, test_cfg would be used
+
+        Returns:
+            tuple:
+                losses: (dict[str, Tensor]): A dictionary of loss components.
+                proposal_list (list[Tensor]): Proposals of each image.
+        """
+        # outs = self(x)
+        outs = self((x, gt_bboxes, gt_labels, img_metas))
+        if gt_labels is None:
+            loss_inputs = outs + (gt_bboxes, img_metas)
+        else:
+            loss_inputs = outs + (gt_bboxes, gt_labels, img_metas)
+        losses = self.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        if proposal_cfg is None:
+            return losses
+        else:
+            proposal_list = self.get_bboxes(*outs, img_metas, cfg=proposal_cfg)
+            return losses, proposal_list
+            
+    def forward(self, x):
+        """Forward features from the upstream network.
+
+        Args:
+            feats (tuple[Tensor]): Features from the upstream network, each is
+                a 4D-tensor.
+
+        Returns:
+            tuple: Usually a tuple of classification scores and bbox prediction
+                cls_scores (list[Tensor]): Classification scores for all scale
+                    levels, each is a 4D-tensor, the channels number is
+                    num_anchors * num_classes.
+                bbox_preds (list[Tensor]): Box energies / deltas for all scale
+                    levels, each is a 4D-tensor, the channels number is
+                    num_anchors * 4.
+        """
+        gt_labels = None
+        try:
+            (feats, gt_bboxes, gt_labels, img_metas) = x
+        except:
+            feats = x
+        (cls_scores_0, bbox_preds_0, centerness_0) = multi_apply(self.forward_single, feats, self.scales)
+        if gt_labels is not None:
+            featmap_sizes = [featmap.size()[-2:] for featmap in cls_scores_0]
+            assert len(featmap_sizes) == self.anchor_generator.num_levels
+
+            device = cls_scores_0[0].device
+            anchor_list, valid_flag_list = self.get_anchors(
+                featmap_sizes, img_metas, device=device)
+            num_level_anchors = [anchors.size(0) for anchors in anchor_list[0]]
+            label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
+            cls_reg_targets = self.get_targets(
+                anchor_list,
+                valid_flag_list,
+                gt_bboxes,
+                img_metas,
+                gt_labels_list=gt_labels,
+                label_channels=label_channels,
+            )
+            (labels, labels_weight, bboxes_target, bboxes_weight, pos_inds,
+             pos_gt_index) = cls_reg_targets
+            cls_scores = levels_to_images(cls_scores_0)
+            cls_scores = [
+                item.reshape(-1, self.cls_out_channels) for item in cls_scores
+            ]
+            bbox_preds = levels_to_images(bbox_preds_0)
+            bbox_preds = [item.reshape(-1, 4) for item in bbox_preds]
+            iou_preds = levels_to_images(centerness_0)
+            iou_preds = [item.reshape(-1, 1) for item in iou_preds]
+            pos_losses_list, = multi_apply(self.get_pos_loss, anchor_list,
+                                           cls_scores, bbox_preds, labels,
+                                           labels_weight, bboxes_target,
+                                           bboxes_weight, pos_inds)
+
+            with torch.no_grad():
+                labels, label_weights, bbox_weights, num_pos = multi_apply(
+                    self.paa_reassign,
+                    pos_losses_list,
+                    labels,
+                    labels_weight,
+                    bboxes_weight,
+                    pos_inds,
+                    pos_gt_index,
+                    anchor_list,
+                )
+            labels = images_to_levels(labels, num_level_anchors)
+        else:
+            labels = []
+            for i in range(len(self.scales)):
+                labels.append(None)
+        (cls_scores_1, bbox_preds_1, centerness_1) = multi_apply(self.forward_single_1, feats, self.scales, labels)
+        return cls_scores_1, bbox_preds_1, centerness_1
+
+    def forward_single(self, x, scale):
+        """Forward feature of a single scale level.
+
+        Args:
+            x (Tensor): Features of a single scale level.
+            scale (:obj: `mmcv.cnn.Scale`): Learnable scale module to resize
+                the bbox prediction.
+
+        Returns:
+            tuple:
+                cls_score (Tensor): Cls scores for a single scale level
+                    the channels number is num_anchors * num_classes.
+                bbox_pred (Tensor): Box energies / deltas for a single scale
+                    level, the channels number is num_anchors * 4.
+                centerness (Tensor): Centerness for a single scale level, the
+                    channel number is (N, num_anchors * 1, H, W).
+        """
+        cls_feat = x
+        reg_feat = x
+        for cls_conv in self.cls_convs:
+            cls_feat = cls_conv(cls_feat)
+        for reg_conv in self.reg_convs:
+            reg_feat = reg_conv(reg_feat)
+        cls_score = self.atss_cls(cls_feat)
+        # we just follow atss, not apply exp in bbox_pred
+        bbox_pred = scale(self.atss_reg(reg_feat)).float()
+        centerness = self.atss_centerness(reg_feat)
+        return cls_score, bbox_pred, centerness
+
+    def forward_single_1(self, x, scale, labels):
+        """Forward feature of a single scale level.
+
+        Args:
+            x (Tensor): Features of a single scale level.
+            scale (:obj: `mmcv.cnn.Scale`): Learnable scale module to resize
+                the bbox prediction.
+
+        Returns:
+            tuple:
+                cls_score (Tensor): Cls scores for a single scale level
+                    the channels number is num_anchors * num_classes.
+                bbox_pred (Tensor): Box energies / deltas for a single scale
+                    level, the channels number is num_anchors * 4.
+                centerness (Tensor): Centerness for a single scale level, the
+                    channel number is (N, num_anchors * 1, H, W).
+        """
+        inputs = Variable(x.data)
+        inputs.requires_grad = True
+        torch.use_pos_weights = True
+        out = inputs
+        for cls_conv in self.cls_convs:
+            out = cls_conv(out)
+        out = self.atss_cls(out)
+        out = out.permute(0, 2, 3, 1).reshape(-1, self.cls_out_channels).contiguous().sigmoid()
+        if labels is not None:
+            label_copy = labels.data.reshape(-1)
+        else:
+            score, label_copy = out.max(dim=-1)
+        
+        prob_outputs = F.one_hot(label_copy, num_classes=self.cls_out_channels + 1)[..., :-1].float()
+        out_copy = out.detach().data
+        out_copy[prob_outputs.bool()] = 0
+        _, confuse_label = out_copy.max(dim=-1)
+        confuse_outputs = F.one_hot(confuse_label, num_classes=self.cls_out_channels + 1)[..., :-1].float()
+        cls_aware = torch.autograd.grad(out, inputs, grad_outputs=prob_outputs.clone(), retain_graph=True)[0].sigmoid()
+        confused = torch.autograd.grad(out, inputs, grad_outputs=confuse_outputs.clone(), retain_graph=True)[0].sigmoid()
+
+        reg_feat = x + x * cls_aware - x * confused
+        cls_feat = x + x * cls_aware - x * confused
+        for cls_conv in self.cls_convs:
+            cls_feat = cls_conv(cls_feat)
+        for reg_conv in self.reg_convs:
+            reg_feat = reg_conv(reg_feat)
+        cls_score = self.atss_cls(cls_feat)
+        for reg_conv in self.reg_convs:
+            reg_feat = reg_conv(reg_feat)
+
+        # we just follow atss, not apply exp in bbox_pred
+        bbox_pred = scale(self.atss_reg(reg_feat)).float()
+        centerness = self.atss_centerness(reg_feat)
+        return cls_score, bbox_pred, centerness
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds', 'iou_preds'))
     def loss(self,
