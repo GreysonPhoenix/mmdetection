@@ -46,7 +46,7 @@ class Integral(nn.Module):
         return x
 
 @HEADS.register_module()
-class ATSSHead(AnchorHead):
+class ATSSLAregHead(AnchorHead):
     """Bridging the Gap Between Anchor-based and Anchor-free Detection via
     Adaptive Training Sample Selection.
 
@@ -83,7 +83,7 @@ class ATSSHead(AnchorHead):
         self.reg_topk = 4
         self.reg_channels = 64
         self.total_dim = self.reg_topk + 1
-        super(ATSSHead, self).__init__(
+        super(ATSSLAregHead, self).__init__(
             num_classes, in_channels, init_cfg=init_cfg, **kwargs)
 
         self.sampling = False
@@ -266,27 +266,36 @@ class ATSSHead(AnchorHead):
         inputs = Variable(x.data)
         inputs.requires_grad = True
         torch.use_pos_weights = True
-        out = inputs
-        for cls_conv in self.cls_convs:
-            out = cls_conv(out)
-        out = self.atss_cls(out)
-        out = out.permute(0, 2, 3, 1).reshape(-1, self.cls_out_channels).contiguous().sigmoid()
+        reg = inputs
+        for reg_conv in self.reg_convs:
+            reg = reg_conv(reg)
+        reg = scale(self.atss_reg(reg)).float()
+        reg = reg.permute(0, 2, 3, 1).reshape(-1, self.reg_max + 1).sigmoid()
         
         if labels is not None:
             label_copy = labels.data.reshape(-1)
+            pos_inds = ((label_copy >= 0) & (label_copy < self.num_classes)).nonzero().squeeze(1)
+            bbox_target_copy = bbox_target.data.reshape(-1, 4)
+            anchors = anchors.reshape(-1, 4)
+            target_corners = torch.zeros(int(reg.shape[0]/4), 4).type_as(labels)
+            if len(pos_inds) > 0:
+                pos_bbox_targets = bbox_target_copy[pos_inds]
+                pos_anchors = anchors[pos_inds]
+                pos_anchor_centers = self.anchor_center(pos_anchors) / stride[0]
+                pos_decode_bbox_targets = self.bbox_coder.decode(pos_anchors, pos_bbox_targets) / stride[0]
+                target_corners[pos_inds] = bbox2distance(pos_anchor_centers,
+                                           pos_decode_bbox_targets,
+                                           self.reg_max).floor().type_as(labels)
+                target_corners = target_corners.reshape(-1)
+            else:
+                target_corners = reg.max(dim=-1)[1]
         else:
-            score, label_copy = out.max(dim=-1)
-        prob_outputs = F.one_hot(label_copy, num_classes=self.cls_out_channels + 1)[..., :-1].float()
-        out_copy = out.detach().data
-        out_copy[prob_outputs.bool()] = 0
-        _, confuse_label = out_copy.max(dim=-1)
-        confuse_outputs = F.one_hot(confuse_label, num_classes=self.cls_out_channels + 1)[..., :-1].float()
-        cls_aware = torch.autograd.grad(out, inputs, grad_outputs=prob_outputs.clone(), retain_graph=True)[0].sigmoid()
-        confused = torch.autograd.grad(out, inputs, grad_outputs=confuse_outputs.clone(), retain_graph=True)[0].sigmoid()
+            target_corners = reg.max(dim=-1)[1]
+        prob_regs = F.one_hot(target_corners, num_classes=self.reg_max + 1).float()
+        reg_aware = torch.autograd.grad(reg, inputs, grad_outputs=prob_regs.clone(), retain_graph=True)[0].sigmoid()
 
-        w = 1 * cls_aware - 1 * confused
-        reg_feat = (1 + w) * x
-        cls_feat = (1 + w) * x
+        reg_feat = 0.5 * x + x * reg_aware
+        cls_feat = 0.5 * x + x * reg_aware
         for cls_conv in self.cls_convs:
             cls_feat = cls_conv(cls_feat)
         for reg_conv in self.reg_convs:
@@ -362,7 +371,7 @@ class ATSSHead(AnchorHead):
                                            pos_decode_bbox_targets,
                                            self.reg_max).reshape(-1).floor().type_as(labels)
             centerness_targets = bbox_overlaps(
-                pos_decode_bbox_pred.detach(), pos_decode_bbox_targets, mode='giou', is_aligned=True)
+                pos_decode_bbox_pred.detach(), pos_decode_bbox_targets, is_aligned=True)
             
             # import ipdb; ipdb.set_trace()
 

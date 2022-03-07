@@ -31,6 +31,8 @@ from .vfnet_head import VFNetHead
 from .yolact_head import YOLACTHead, YOLACTProtonet, YOLACTSegmHead
 from .yolo_head import YOLOV3Head
 from .yolof_head import YOLOFHead
+from .atss_head_LAcls import ATSSLAclsHead
+from .atss_head_LAreg import ATSSLAregHead
 
 __all__ = [
     'AnchorFreeHead', 'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption',
@@ -41,5 +43,5 @@ __all__ = [
     'YOLACTSegmHead', 'YOLACTProtonet', 'YOLOV3Head', 'PAAHead',
     'SABLRetinaHead', 'CentripetalHead', 'VFNetHead', 'StageCascadeRPNHead',
     'CascadeRPNHead', 'EmbeddingRPNHead', 'LDHead', 'CascadeRPNHead',
-    'AutoAssignHead', 'DETRHead', 'YOLOFHead', 'DeformableDETRHead'
+    'AutoAssignHead', 'DETRHead', 'YOLOFHead', 'DeformableDETRHead', 'ATSSLAclsHead', 'ATSSLAregHead'
 ]

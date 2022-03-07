@@ -46,7 +46,7 @@ class Integral(nn.Module):
         return x
 
 @HEADS.register_module()
-class ATSSHead(AnchorHead):
+class ATSSLAclsHead(AnchorHead):
     """Bridging the Gap Between Anchor-based and Anchor-free Detection via
     Adaptive Training Sample Selection.
 
@@ -83,7 +83,7 @@ class ATSSHead(AnchorHead):
         self.reg_topk = 4
         self.reg_channels = 64
         self.total_dim = self.reg_topk + 1
-        super(ATSSHead, self).__init__(
+        super(ATSSLAclsHead, self).__init__(
             num_classes, in_channels, init_cfg=init_cfg, **kwargs)
 
         self.sampling = False
@@ -362,7 +362,7 @@ class ATSSHead(AnchorHead):
                                            pos_decode_bbox_targets,
                                            self.reg_max).reshape(-1).floor().type_as(labels)
             centerness_targets = bbox_overlaps(
-                pos_decode_bbox_pred.detach(), pos_decode_bbox_targets, mode='giou', is_aligned=True)
+                pos_decode_bbox_pred.detach(), pos_decode_bbox_targets, is_aligned=True)
             
             # import ipdb; ipdb.set_trace()
 
