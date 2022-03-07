@@ -18,7 +18,7 @@
 ## Prepare the dataset
 Download CLCXray from [here](https://pan.baidu.com/s/1fYwxiyGG8cJndebMO4Bn9A) (password: clcx) and move it to the "data" folder. The folder structure is as follow:
 ```
-LA
+MMDETECTION
 |-data
 |  |-coco
 ```
