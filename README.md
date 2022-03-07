@@ -22,9 +22,25 @@ MMDETECTION
 |-data
 |  |-coco
 ```
+## Training
+### Command
+CUDA_VISIBLE_DEVICES={GPU id} python tools/train.py {config}  --work-dir {output folder}
+### Sample
+```
+CUDA_VISIBLE_DEVICES=0 python tools/train.py ./configs/atss_la/LAcls_r50_fpn_1x_coco.py  --work-dir atss_LAcls_new
+``` 
+(we set samples_per_gpu=8 and workers_per_gpu=8 in ./configs/_base_/datasets/coco_detection.py when using single GPU)
+or 
+```
+CUDA_VISIBLE_DEVICES=0，1 tools/dist_train.sh ./configs/atss_la/LAcls_r50_fpn_1x_coco.py  2 --work-dir atss_LAcls_new
+```
+## Test trained models
+Download the trained model from [here](https://pan.baidu.com/s/1mxYLMUXzgpSIQBN79cFS9g?pwd=clcx)
+```
+CUDA_VISIBLE_DEVICES=0 python tools/test.py ./configs/atss_la/LAcls_r50_fpn_1x_coco.py ./atss_LAcls_trained/epoch_12.pth --eval bbox
+```
 ## Acknowledgement
 We thanks MMDetection for their code.
-
 
 ## Citation
 
