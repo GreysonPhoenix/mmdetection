@@ -58,8 +58,8 @@ data = dict(
         ]),
     val=dict(
         type='CocoDataset',
-        ann_file='data/coco/annotations/instances_val2017.json',
-        img_prefix='data/coco/val2017/',
+        ann_file='data/coco/annotations/instances_test2017.json',
+        img_prefix='data/coco/test2017/',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(
@@ -81,8 +81,8 @@ data = dict(
         ]),
     test=dict(
         type='CocoDataset',
-        ann_file='data/coco/annotations/instances_val2017.json',
-        img_prefix='data/coco/val2017/',
+        ann_file='data/coco/annotations/instances_test2017.json',
+        img_prefix='data/coco/test2017/',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(
@@ -111,8 +111,8 @@ lr_config = dict(
     warmup_iters=500,
     warmup_ratio=0.001,
     step=[8, 11])
-runner = dict(type='EpochBasedRunner', max_epochs=30)
-checkpoint_config = dict(interval=31)
+runner = dict(type='EpochBasedRunner', max_epochs=12)
+checkpoint_config = dict(interval=12)
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
 custom_hooks = [dict(type='NumClassCheckHook')]
 dist_params = dict(backend='nccl')
@@ -175,5 +175,5 @@ model = dict(
         score_thr=0.05,
         nms=dict(type='nms', iou_threshold=0.6),
         max_per_img=100))
-work_dir = 'atss_w'
+work_dir = 'atss_temp'
 gpu_ids = range(0, 1)

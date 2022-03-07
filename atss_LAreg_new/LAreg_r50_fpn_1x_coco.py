@@ -58,8 +58,8 @@ data = dict(
         ]),
     val=dict(
         type='CocoDataset',
-        ann_file='data/coco/annotations/instances_val2017.json',
-        img_prefix='data/coco/val2017/',
+        ann_file='data/coco/annotations/instances_test2017.json',
+        img_prefix='data/coco/test2017/',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(
@@ -81,8 +81,8 @@ data = dict(
         ]),
     test=dict(
         type='CocoDataset',
-        ann_file='data/coco/annotations/instances_val2017.json',
-        img_prefix='data/coco/val2017/',
+        ann_file='data/coco/annotations/instances_test2017.json',
+        img_prefix='data/coco/test2017/',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(
@@ -111,7 +111,7 @@ lr_config = dict(
     warmup_iters=500,
     warmup_ratio=0.001,
     step=[8, 11])
-runner = dict(type='EpochBasedRunner', max_epochs=30)
+runner = dict(type='EpochBasedRunner', max_epochs=12)
 checkpoint_config = dict(interval=12)
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
 custom_hooks = [dict(type='NumClassCheckHook')]
@@ -140,7 +140,7 @@ model = dict(
         add_extra_convs='on_output',
         num_outs=5),
     bbox_head=dict(
-        type='ATSSHead',
+        type='ATSSLAregHead',
         num_classes=12,
         in_channels=256,
         stacked_convs=4,
@@ -175,5 +175,5 @@ model = dict(
         score_thr=0.05,
         nms=dict(type='nms', iou_threshold=0.6),
         max_per_img=100))
-work_dir = 'atss_ob'
+work_dir = 'atss_temp1'
 gpu_ids = range(0, 2)
