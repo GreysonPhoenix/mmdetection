@@ -35,9 +35,9 @@ or
 CUDA_VISIBLE_DEVICES=0，1 tools/dist_train.sh ./configs/atss_la/LAcls_r50_fpn_1x_coco.py  2 --work-dir atss_LAcls_new
 ```
 ## Test trained models
-Download the trained model from [here](https://pan.baidu.com/s/1mxYLMUXzgpSIQBN79cFS9g?pwd=clcx)
+Download the trained model from [here](https://pan.baidu.com/s/1HcB_RcIQRtExzPyoTm5xQg?pwd=CLCX)
 ```
-CUDA_VISIBLE_DEVICES=0 python tools/test.py ./configs/atss_la/LAcls_r50_fpn_1x_coco.py ./atss_LAcls_trained/epoch_12.pth --eval bbox
+CUDA_VISIBLE_DEVICES=0 python tools/test.py ./configs/atss_la/LAcls_r50_fpn_1x_coco.py ./trained/atss_cls/epoch_12_311.pth --eval bbox
 ```
 ## Acknowledgement
 We thanks MMDetection for their code.
