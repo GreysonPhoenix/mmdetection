@@ -24,7 +24,9 @@ MMDETECTION
 ```
 ## Training
 ### Command
+'''
 CUDA_VISIBLE_DEVICES={GPU id} python tools/train.py {config}  --work-dir {output folder}
+'''
 ### Sample
 ```
 CUDA_VISIBLE_DEVICES=0 python tools/train.py ./configs/atss_la/LAcls_r50_fpn_1x_coco.py  --work-dir atss_LAcls_new
