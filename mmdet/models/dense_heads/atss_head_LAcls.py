@@ -81,7 +81,7 @@ class ATSSLAclsHead(AnchorHead):
         self.norm_cfg = norm_cfg
         self.reg_max = 16
         self.reg_topk = 4
-        self.reg_channels = 64
+        self.reg_channels = 16
         self.total_dim = self.reg_topk + 1
         super(ATSSLAclsHead, self).__init__(
             num_classes, in_channels, init_cfg=init_cfg, **kwargs)
@@ -137,7 +137,7 @@ class ATSSLAclsHead(AnchorHead):
 
         self.scales = nn.ModuleList(
             [Scale(1.0) for _ in self.anchor_generator.strides])
-        conf_vector = [nn.Conv2d(4 * self.total_dim, self.reg_channels, 1)]
+        conf_vector = [nn.Conv2d(4, self.reg_channels, 1)]
         conf_vector += [self.relu]
         conf_vector += [nn.Conv2d(self.reg_channels, 1, 1)]
         self.reg_conf = nn.Sequential(*conf_vector)
@@ -214,7 +214,6 @@ class ATSSLAclsHead(AnchorHead):
             anchor_list, valid_flag_list = self.get_anchors(
                 featmap_sizes, img_metas, device=device)
             label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
-
             cls_reg_targets = self.get_targets(
                 anchor_list,
                 valid_flag_list,
@@ -271,7 +270,6 @@ class ATSSLAclsHead(AnchorHead):
             out = cls_conv(out)
         out = self.atss_cls(out)
         out = out.permute(0, 2, 3, 1).reshape(-1, self.cls_out_channels).contiguous().sigmoid()
-        
         if labels is not None:
             label_copy = labels.data.reshape(-1)
         else:
@@ -299,9 +297,8 @@ class ATSSLAclsHead(AnchorHead):
         bbox_pred = scale(self.atss_reg(reg_feat)).float()
         N, C, H, W = bbox_pred.size()
         prob = F.softmax(bbox_pred.reshape(N, 4, self.reg_max+1, H, W), dim=2)
-        prob_topk, _ = prob.topk(self.reg_topk, dim=2)
-        stat = torch.cat([prob_topk, prob_topk.mean(dim=2, keepdim=True)], dim=2)
-        centerness = self.reg_conf(stat.reshape(N, -1, H, W))
+        prob = prob.max(dim=2)[0] - prob.mean(dim=2)
+        centerness = self.reg_conf(prob)
         return cls_score, bbox_pred, centerness
 
     def loss_single(self, anchors, cls_score, bbox_pred, centerness, labels,
@@ -443,7 +440,6 @@ class ATSSLAclsHead(AnchorHead):
 
         (anchor_list, labels_list, label_weights_list, bbox_targets_list,
          bbox_weights_list, num_total_pos, num_total_neg) = cls_reg_targets
-
         num_total_samples = reduce_mean(
             torch.tensor(num_total_pos, dtype=torch.float,
                          device=device)).item()

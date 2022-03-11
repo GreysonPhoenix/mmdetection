@@ -137,7 +137,7 @@ class ATSSLAregHead(AnchorHead):
 
         self.scales = nn.ModuleList(
             [Scale(1.0) for _ in self.anchor_generator.strides])
-        conf_vector = [nn.Conv2d(4 * self.total_dim, self.reg_channels, 1)]
+        conf_vector = [nn.Conv2d(4, self.reg_channels, 1)]
         conf_vector += [self.relu]
         conf_vector += [nn.Conv2d(self.reg_channels, 1, 1)]
         self.reg_conf = nn.Sequential(*conf_vector)
@@ -308,9 +308,8 @@ class ATSSLAregHead(AnchorHead):
         bbox_pred = scale(self.atss_reg(reg_feat)).float()
         N, C, H, W = bbox_pred.size()
         prob = F.softmax(bbox_pred.reshape(N, 4, self.reg_max+1, H, W), dim=2)
-        prob_topk, _ = prob.topk(self.reg_topk, dim=2)
-        stat = torch.cat([prob_topk, prob_topk.mean(dim=2, keepdim=True)], dim=2)
-        centerness = self.reg_conf(stat.reshape(N, -1, H, W))
+        prob = prob.max(dim=2)[0] - prob.mean(dim=2)
+        centerness = self.reg_conf(prob)
         return cls_score, bbox_pred, centerness
 
     def loss_single(self, anchors, cls_score, bbox_pred, centerness, labels,
