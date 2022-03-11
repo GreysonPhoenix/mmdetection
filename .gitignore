@@ -121,3 +121,6 @@ work_dirs/
 *.sh~
 
 /data/
+/atss_c/
+/atss_r/
+/atss_t/
