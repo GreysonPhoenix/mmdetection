@@ -1,4 +1,5 @@
 ## Introduction
+The code of "Detecting Overlapped Objects in X-Ray Security Imagery by a Label-Aware Mechanism" is based on mmdetection.
 ## Prepare environment
 1. Create a conda virtual environment and activate it
 ```
@@ -56,5 +57,14 @@ We thanks MMDetection for their code.
              and Shi, Jianping and Ouyang, Wanli and Loy, Chen Change and Lin, Dahua},
   journal= {arXiv preprint arXiv:1906.07155},
   year={2019}
+}
+```
+```
+@article{zhao2022detecting,
+  title={Detecting Overlapped Objects in X-ray Security Imagery by a Label-aware Mechanism},
+  author={Zhao, Cairong and Zhu, Liang and Dou, Shuguang and Deng, Weihong and Wang, Liang},
+  journal={IEEE Transactions on Information Forensics and Security},
+  year={2022},
+  publisher={IEEE}
 }
 ```
