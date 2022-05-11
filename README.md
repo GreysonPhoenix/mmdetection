@@ -13,6 +13,8 @@ The code of "Detecting Overlapped Objects in X-Ray Security Imagery by a Label-A
 3. Install mmdetection
 ```
   pip install mmcv-full==1.3.2 -f https://download.openmmlab.com/mmcv/dist/cu110/torch1.7.0/index.html 
+  git clone https://github.com/GreysonPhoenix/mmdetection.git
+  cd mmdetection
   pip install -r requirements/build.txt 
   pip install -v -e.
 ```
