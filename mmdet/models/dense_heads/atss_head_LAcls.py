@@ -15,14 +15,7 @@ from torch.autograd import Variable
 EPS = 1e-12
 
 class Integral(nn.Module):
-    """A fixed layer for calculating integral result from distribution.
-    This layer calculates the target location by :math: `sum{P(y_i) * y_i}`,
-    P(y_i) denotes the softmax vector that represents the discrete distribution
-    y_i denotes the discrete set, usually {0, 1, 2, ..., reg_max}
-    Args:
-        reg_max (int): The maximal value of the discrete set. Default: 16. You
-            may want to reset it according to your new dataset or related
-            settings.
+    """Calculate expectations.
     """
 
     def __init__(self, reg_max=16):
@@ -95,6 +88,7 @@ class ATSSLAclsHead(AnchorHead):
         self.loss_centerness = build_loss(loss_centerness)
         self.iou_calculators = build_iou_calculator(dict(type='BboxOverlaps2D'))
         self.integral = Integral(self.reg_max)
+        # This loss does not seem to matter
         self.loss_d = build_loss(dict(
             type='FocalLoss',
             use_sigmoid=True,
@@ -204,12 +198,9 @@ class ATSSLAclsHead(AnchorHead):
         except:
             feats = x
         if gt_labels is not None:
-            # import ipdb; ipdb.set_trace()
-            # featmap_sizes = [featmap.size()[-2:] for featmap in cls_scores_0]
             featmap_sizes = [featmap[0].size()[-2:] for featmap in feats]
             assert len(featmap_sizes) == self.anchor_generator.num_levels
 
-            # device = cls_scores_0[0].device
             device = feats[0][0].device
             anchor_list, valid_flag_list = self.get_anchors(
                 featmap_sizes, img_metas, device=device)
@@ -358,8 +349,8 @@ class ATSSLAclsHead(AnchorHead):
             target_corners = bbox2distance(pos_anchor_centers,
                                            pos_decode_bbox_targets,
                                            self.reg_max).reshape(-1).floor().type_as(labels)
-            centerness_targets = bbox_overlaps(
-                pos_decode_bbox_pred.detach(), pos_decode_bbox_targets, is_aligned=True)
+            centerness_targets = self.centerness_target(
+                pos_anchors, pos_bbox_targets)
             
             # import ipdb; ipdb.set_trace()
 
